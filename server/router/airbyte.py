@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from airbyte import (
-    TokenRequest, list_destinations, list_sources,
-    MotherDuckConfigRequest, config_destination_mduck,
-    CoinAPIConfig, config_source_coinapi,
-    SyncConfig, run_sync
+list_destinations, list_sources,
+config_destination_mduck,
+config_source_coinapi, run_sync
 )
+from models import TokenRequest, MotherDuckConfigRequest, CoinAPIConfig, SyncConfig
 
 airbyte_router = APIRouter(prefix="/airbyte", tags=["airbyte"])
 
