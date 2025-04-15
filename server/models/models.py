@@ -37,3 +37,4 @@ class SyncStatusResponse(BaseModel):
 class HealthStatusResponse(BaseModel):
     status: str
     channel: str
+

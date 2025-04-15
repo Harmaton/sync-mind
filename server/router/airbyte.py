@@ -1,15 +1,11 @@
 from fastapi import APIRouter, HTTPException
-from airbyte import (
-list_destinations, list_sources,
-config_destination_mduck,
-config_source_coinapi, run_sync
-)
-from models import TokenRequest, MotherDuckConfigRequest, CoinAPIConfig, SyncConfig
+from airbyte import list_destinations, list_sources, run_sync, setup_mongo_db_destination
+from models import  SyncConfig, MongoDBConfig
 
 airbyte_router = APIRouter(prefix="/airbyte", tags=["airbyte"])
 
-@airbyte_router.post("/destinations", response_model=dict)
-async def list_destinations_endpoint(credentials: TokenRequest):
+@airbyte_router.get("/destinations", response_model=dict)
+async def list_destinations_endpoint():
     """
     List all destinations in Airbyte.
 
@@ -20,12 +16,12 @@ async def list_destinations_endpoint(credentials: TokenRequest):
         dict: List of destinations.
     """
     try:
-        return list_destinations(credentials)
+        return list_destinations()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@airbyte_router.post("/sources", response_model=dict)
-async def list_sources_endpoint(credentials: TokenRequest):
+@airbyte_router.get("/sources", response_model=dict)
+async def list_sources_endpoint():
     """
     List all sources in Airbyte.
 
@@ -36,41 +32,29 @@ async def list_sources_endpoint(credentials: TokenRequest):
         dict: List of sources.
     """
     try:
-        return list_sources(credentials)
+        return list_sources()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@airbyte_router.post("/configure-destination-mduck", response_model=dict)
-async def config_destination_mduck_endpoint(config: MotherDuckConfigRequest):
+
+@airbyte_router.post("/destinations/mongodb", response_model=dict)
+async def create_mongodb_destination(config: MongoDBConfig):
     """
-    Configure a MotherDuck destination in Airbyte.
+    Create a MongoDB destination in Airbyte.
 
     Args:
-        config: MotherDuckConfigRequest with workspaceId, motherduck_api_key, destination_path, schema.
+        config: MongoDBConfig object containing workspaceId, cluster_url, database, username, and password.
 
     Returns:
-        dict: Configured destination details.
+        dict: Success message if the destination is created.
     """
     try:
-        return config_destination_mduck(config)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return setup_mongo_db_destination(config)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create MongoDB destination: {str(e)}")
 
-@airbyte_router.post("/configure-source-coinapi", response_model=dict)
-async def config_source_coinapi_endpoint(config: CoinAPIConfig):
-    """
-    Configure a CoinAPI source in Airbyte.
-
-    Args:
-        config: CoinAPIConfig with api_key and symbol_id.
-
-    Returns:
-        dict: Configured source details.
-    """
-    try:
-        return config_source_coinapi(config)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 @airbyte_router.post("/run-sync", response_model=dict)
 async def run_sync_endpoint(config: SyncConfig):

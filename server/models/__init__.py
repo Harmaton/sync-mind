@@ -1,5 +1,5 @@
-from .models import SyncResponse, HealthStatusResponse, InsightsResponse, SyncStatusResponse, MindsDBPingResponse, PostgresDataSourceCreate
-from .airbyteModels import TokenRequest, SyncConfig, TokenResponse, MotherDuckConfigRequest, CoinAPIConfig
+from .models import  HealthStatusResponse, InsightsResponse, SyncStatusResponse, MindsDBPingResponse, PostgresDataSourceCreate
+from .airbyteModels import TokenRequest, SyncConfig, TokenResponse,PostgresConfig, MongoDBConfig
 
 __all__ = [
    'HealthStatusResponse',
@@ -11,6 +11,6 @@ __all__ = [
     'SyncConfig',
     'TokenRequest',
     'TokenResponse',
-    'MotherDuckConfigRequest',
-    'CoinAPIConfig'
+    'PostgresConfig'
+    'MongoDBConfig'
 ]

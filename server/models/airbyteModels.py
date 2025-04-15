@@ -9,12 +9,6 @@ class TokenRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
 
-class MotherDuckConfigRequest(BaseModel):
-    workspaceId: str
-    motherduck_api_key: str
-    destination_path: str
-    schema: str
-
 class CoinAPIConfig(BaseModel):
     api_key: str
     symbol_id: str
@@ -22,3 +16,21 @@ class CoinAPIConfig(BaseModel):
 class SyncConfig(BaseModel):
     sourceId: str
     destinationId: str
+
+class PostgresConfig(BaseModel):
+    username: str
+    host: str
+    password: str
+
+class ShopifyConfig(BaseModel):
+    api_key: str
+    api_secret: str
+    store_name: str
+    access_token: str
+
+class MongoDBConfig(BaseModel):
+    workspaceId: str
+    cluster_url: str
+    database: str
+    username: str
+    password: str

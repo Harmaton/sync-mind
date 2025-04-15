@@ -1,12 +1,11 @@
 import os
 import requests
 import structlog
-from models import  TokenRequest, SyncConfig, MotherDuckConfigRequest, CoinAPIConfig
+from models import  TokenRequest, SyncConfig, PostgresConfig
 
 logger = structlog.get_logger(__name__)
 
-
-def generate_token(credentials: TokenRequest) -> dict:
+def generate_token() -> dict:
     """
     Generate an Airbyte API token using client credentials.
 
@@ -25,9 +24,9 @@ def generate_token(credentials: TokenRequest) -> dict:
         "accept": "application/json"
     }
     payload = {
-        "client_id": credentials.client_id,
-        "client_secret": credentials.client_secret,
-        "grant_type": credentials.grant_type
+        "client_id": os.getenv("AIRBYTE_CLIENT_ID", ""),
+        "client_secret": os.getenv("AIRBYTE_SECRET_ACCESS", ""),
+        "grant_type": "client_credentials"
     }
 
     try:
@@ -45,7 +44,7 @@ def generate_token(credentials: TokenRequest) -> dict:
                 raise ValueError("Invalid credentials or unauthorized")
         raise ValueError(f"Token generation failed: {str(e)}")
 
-def list_destinations(credentials: TokenRequest) -> dict:
+def list_destinations() -> dict:
     """
     List all destinations in Airbyte.
 
@@ -59,7 +58,7 @@ def list_destinations(credentials: TokenRequest) -> dict:
         ValueError: For authentication or API errors.
     """
     try:
-        token_response = generate_token(credentials)
+        token_response = generate_token()
         access_token = token_response.get("access_token")
         if not access_token:
             raise ValueError("Failed to obtain access token")
@@ -80,7 +79,7 @@ def list_destinations(credentials: TokenRequest) -> dict:
             raise ValueError("Authentication failed - invalid token")
         raise ValueError(f"Failed to list destinations: {str(e)}")
 
-def list_sources(credentials: TokenRequest) -> dict:
+def list_sources() -> dict:
     """
     List all sources in Airbyte.
 
@@ -94,7 +93,7 @@ def list_sources(credentials: TokenRequest) -> dict:
         ValueError: For authentication or API errors.
     """
     try:
-        token_response = generate_token(credentials)
+        token_response = generate_token()
         access_token = token_response.get("access_token")
         if not access_token:
             raise ValueError("Failed to obtain access token")
@@ -105,7 +104,6 @@ def list_sources(credentials: TokenRequest) -> dict:
             "accept": "application/json",
             "Authorization": f"Bearer {access_token}"
         }
-
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         return response.json()
@@ -114,95 +112,6 @@ def list_sources(credentials: TokenRequest) -> dict:
         if 'response' in locals() and response.status_code == 401:
             raise ValueError("Authentication failed - invalid token")
         raise ValueError(f"Failed to list sources: {str(e)}")
-
-def config_destination_mduck(config: MotherDuckConfigRequest) -> dict:
-    """
-    Configure a MotherDuck destination in Airbyte.
-
-    Args:
-        config: MotherDuckConfigRequest with workspaceId, motherduck_api_key, destination_path, schema.
-
-    Returns:
-        dict: Configured destination details.
-
-    Raises:
-        ValueError: For authentication or API errors.
-    """
-    try:
-        token_response = generate_token(TokenRequest(
-            client_id=os.getenv("AIRBYTE_CLIENT_ID", ""),
-            client_secret=os.getenv("AIRBYTE_SECRET_ACCESS", "")
-        ))
-        access_token = token_response.get("access_token")
-        if not access_token:
-            raise ValueError("Failed to obtain access token")
-
-        url = "https://api.airbyte.com/v1/destinations"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "Authorization": f"Bearer {access_token}"
-        }
-        payload = {
-            "name": "destination-MotherDuck",
-            "workspaceId": config.workspaceId,
-            "configuration": {
-                "destinationType": "duckdb",
-                "motherduck_api_key": config.motherduck_api_key,
-                "destination_path": f"md:{config.destination_path}",
-                "schema": config.schema
-            }
-        }
-
-        response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        logger.error("Error configuring MotherDuck destination", error=str(e))
-        raise ValueError(f"Failed to configure destination: {str(e)}")
-
-def config_source_coinapi(config: CoinAPIConfig) -> dict:
-    """
-    Configure a CoinAPI source in Airbyte.
-
-    Args:
-        config: CoinAPIConfig with api_key and symbol_id.
-
-    Returns:
-        dict: Configured source details.
-
-    Raises:
-        ValueError: For authentication or API errors.
-    """
-    try:
-        token_response = generate_token(TokenRequest(
-            client_id=os.getenv("AIRBYTE_CLIENT_ID", ""),
-            client_secret=os.getenv("AIRBYTE_SECRET_ACCESS", "")
-        ))
-        access_token = token_response.get("access_token")
-        if not access_token:
-            raise ValueError("Failed to obtain access token")
-
-        url = "https://api.airbyte.com/v1/sources"
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "Authorization": f"Bearer {access_token}"
-        }
-        payload = {
-            "api_key": config.api_key,
-            "configuration": {"sourceType": "coin-api"},
-            "start_date": "2019-01-01T00:00:00",
-            "symbol_id": config.symbol_id,
-            "environment": os.getenv("COIN_ENVIRONMENT", "")
-        }
-
-        response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        logger.error("Error configuring CoinAPI source", error=str(e))
-        raise ValueError(f"Failed to configure source: {str(e)}")
 
 def run_sync(config: SyncConfig) -> dict:
     """
@@ -218,10 +127,7 @@ def run_sync(config: SyncConfig) -> dict:
         ValueError: For authentication or API errors.
     """
     try:
-        token_response = generate_token(TokenRequest(
-            client_id=os.getenv("AIRBYTE_CLIENT_ID", ""),
-            client_secret=os.getenv("AIRBYTE_SECRET_ACCESS", "")
-        ))
+        token_response = generate_token()
         access_token = token_response.get("access_token")
         if not access_token:
             raise ValueError("Failed to obtain access token")
