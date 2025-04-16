@@ -40,22 +40,3 @@ def get_prediction(project_name: str, model_name: str, data: list[dict]) -> dict
             print(f"Response: {response.text}")
         raise
 
-# # Example usage
-# if __name__ == "__main__":
-#     try:
-#         prediction_data = [
-#             {
-#                 "sqft": "823",
-#                 "location": "good",
-#                 "neighborhood": "downtown",
-#                 "days_on_market": "10"
-#             }
-#         ]
-#         prediction_response = get_prediction(
-#             project_name="mindsdb",
-#             model_name="home_rentals_model",
-#             data=prediction_data
-#         )
-#         print("Prediction result:", prediction_response)
-#     except Exception as e:
-#         print(f"Failed to get prediction: {e}")

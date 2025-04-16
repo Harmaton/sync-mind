@@ -14,7 +14,6 @@ class Settings(BaseSettings):
     """
     Application settings model that provides configuration for all components.
     """
-    
     # Airbyte Settings
     airbyte_client_id: str = ""
     airbyte_client_secret: str = ""

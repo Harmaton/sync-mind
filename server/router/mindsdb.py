@@ -2,6 +2,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Depends
 from mindsdb import connect_to_mindsdb, list_datasources, create_postgres_datasource
 from models import PostgresDataSourceCreate, MindsDBPingResponse
+from mindsdb import query_ten
 
 logger = structlog.get_logger(__name__)
 
@@ -20,6 +21,13 @@ def get_mindsdb_service():
             status_code=503, 
             detail="MindsDB service unavailable"
         )
+
+@mindsdb_router.get("/query")
+async def query():
+    try:
+        return query_ten()
+    except Exception as e:
+        logger.error(f"error")
 
 @mindsdb_router.get("/ping", response_model=MindsDBPingResponse)
 async def ping_mindsdb(
@@ -82,37 +90,3 @@ async def get_datasource(
             detail=f"Failed to retrieve datasource: {str(e)}"
         )
 
-@mindsdb_router.post("/datasources/{datasource_name}")
-async def create_postgres_datasource_endpoint(
-    datasource_name: str,
-    postgres_config: PostgresDataSourceCreate,
-    mindsdb_service = Depends(get_mindsdb_service)
-):
-    """Create a new PostgreSQL datasource in MindsDB"""
-    try:
-        result = create_postgres_datasource(
-            mindsdb_service,
-            datasource_name,
-            postgres_config.host,
-            postgres_config.port,
-            postgres_config.username,
-            postgres_config.password,
-            postgres_config.database
-        )
-        
-        if result:
-            return {
-                "message": f"PostgreSQL datasource '{datasource_name}' created successfully",
-                "details": result
-            }
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to create datasource '{datasource_name}'"
-            )
-    except Exception as e:
-        logger.error(f"Error creating datasource {datasource_name}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create datasource: {str(e)}"
-        )
