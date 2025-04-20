@@ -1,17 +1,14 @@
-import os
 import requests
 import structlog
-from models import  TokenRequest, SyncConfig, PostgresConfig
+from models import  SyncConfig
+from settings import Settings
 
 logger = structlog.get_logger(__name__)
+settings = Settings()
 
 def generate_token() -> dict:
     """
     Generate an Airbyte API token using client credentials.
-
-    Args:
-        credentials: TokenRequest object with client_id, client_secret, and optional grant_type.
-
     Returns:
         dict: Token response containing access_token.
 
@@ -24,8 +21,8 @@ def generate_token() -> dict:
         "accept": "application/json"
     }
     payload = {
-        "client_id": os.getenv("AIRBYTE_CLIENT_ID", ""),
-        "client_secret": os.getenv("AIRBYTE_SECRET_ACCESS", ""),
+        "client_id": settings.airbyte_client_id,
+        "client_secret": settings.airbyte_client_secret,
         "grant_type": "client_credentials"
     }
 
@@ -138,6 +135,7 @@ def run_sync(config: SyncConfig) -> dict:
             "content-type": "application/json",
             "Authorization": f"Bearer {access_token}"
         }
+        # Use default connection settings as per Airbyte docs
         payload = {
             "sourceId": config.sourceId,
             "destinationId": config.destinationId,
@@ -146,10 +144,12 @@ def run_sync(config: SyncConfig) -> dict:
                 "cronExpression": "0 0 * * * ?"
             }
         }
+        # Remove keys with None values
+        payload = {k: v for k, v in payload.items() if v is not None}
 
         response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        logger.error("Error running sync", error=str(e))
+        logger.error("Error running sync", error=str(e), response=getattr(e.response, 'text', None))
         raise ValueError(f"Failed to run sync: {str(e)}")

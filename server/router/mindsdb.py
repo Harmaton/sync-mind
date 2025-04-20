@@ -1,7 +1,7 @@
 import structlog
 from fastapi import APIRouter, HTTPException, Depends
-from mindsdb import connect_to_mindsdb, list_datasources, create_postgres_datasource
-from models import PostgresDataSourceCreate, MindsDBPingResponse
+from mindsdb import connect_to_mindsdb, list_datasources
+from models import  MindsDBPingResponse
 from mindsdb import query_ten
 
 logger = structlog.get_logger(__name__)

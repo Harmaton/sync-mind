@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from airbyte import list_destinations, list_sources, run_sync, setup_mongo_db_destination
-from models import  SyncConfig, MongoDBConfig
+from models import SyncConfig, MongoDBConfig
+import time
+import sys
 
 airbyte_router = APIRouter(prefix="/airbyte", tags=["airbyte"])
 
@@ -68,6 +70,21 @@ async def run_sync_endpoint(config: SyncConfig):
         dict: Sync connection details.
     """
     try:
-        return run_sync(config)
+        # CLI-style loading state
+        loading_msg = "Running Airbyte sync: "
+        sys.stdout.write(loading_msg)
+        sys.stdout.flush()
+        for _ in range(3):
+            sys.stdout.write(".")
+            sys.stdout.flush()
+            time.sleep(0.5)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
+        # Actually run the sync
+        result = run_sync(config)
+        return {"status": "success", "details": result}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return {"status": "error", "error": str(e)}
+    except Exception as e:
+        return {"status": "error", "error": f"Unexpected error: {str(e)}"}

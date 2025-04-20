@@ -1,11 +1,10 @@
-
 import os
 from dotenv import load_dotenv
 import requests
 load_dotenv()
 
 def connect_to_mindsdb():
-    mindsdb_url = os.getenv('MINDSDB_URL', 'http://127.0.0.1:47334')
+    mindsdb_url = os.getenv('MINDSDB_URL', 'http://127.0.0.1:47334/api')
     print(f"Using MindsDB URL: {mindsdb_url}")
     return mindsdb_url
 

@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     airbyte_client_id: str = ""
     airbyte_client_secret: str = ""
     airbyte_workspace_id: str = ""
+
+    #shopify
+    shopify_api_password: str =""
+    shopify_shop: str=""
     
     # MongoDB Settings
     mongo_cluster_url: str = ""

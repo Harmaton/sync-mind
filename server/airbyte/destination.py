@@ -2,12 +2,12 @@ import os
 import requests
 from fastapi import HTTPException
 from models import MongoDBConfig
+from settings import Settings
 from .pipeline import generate_token
 
 url = "https://api.airbyte.com/v1/destinations"
-
-
-def setup_mongo_db_destination(config: MongoDBConfig) -> dict:
+settings = Settings()
+def setup_mongo_db_destination() -> dict:
     """
     Setup the MongoDB destination with the given configuration.
     
@@ -21,25 +21,23 @@ def setup_mongo_db_destination(config: MongoDBConfig) -> dict:
         HTTPException: If the configuration fails or the API request encounters an error.
     """
     try:
-        # Generate access token for Airbyte API
         token_response = generate_token()
         access_token = token_response.get("access_token")
 
-        # Construct the payload with hardcoded and dynamic values
         payload = {
-            "name": "MongoDB-Destination",  # Hardcoded as specified
-            "workspaceId": config.workspaceId,
+            "name": "MongoDB-Destination",  
+            "workspaceId": settings.airbyte_workspace_id,
             "configuration": {
-                "destinationType": "mongodb",  # Hardcoded as specified
+                "destinationType": "mongodb", 
                 "instance_type": {
                     "instance": "atlas",
-                    "cluster_url": config.cluster_url,
+                    "cluster_url": settings.mongo_cluster_url,
                 },
-                "database": config.database,
+                "database": settings.mongo_database,
                 "auth_type": {
                     "authorization": "login/password",
-                    "username": config.username,
-                    "password": config.password,
+                    "username": settings.mongo_username,
+                    "password": settings.mongo_password
                 },
             },
         }
@@ -50,10 +48,8 @@ def setup_mongo_db_destination(config: MongoDBConfig) -> dict:
             "Authorization": f"Bearer {access_token}"
         }
 
-        # Make the API request to create the destination
         response = requests.post(url, json=payload, headers=headers)
 
-        # Check for unsuccessful response status
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
 
