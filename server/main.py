@@ -6,7 +6,6 @@ from router import mindsdb_router, airbyte_router
 from router.slack import slack_router
 from settings import Settings
 from airbyte import setup_airbyte_connections
-from mindsdb.init_server import setup_mindsdb_server
 from mindsdb.slack_kb_setup import setup_slack_chatbot_kb
 from mindsdb.text2sql_setup import setup_text2sql_skill, text2sql_router
 from mindsdb.forecast_setup import setup_forecast_model, forecast_router
@@ -52,9 +51,6 @@ def create_app() -> FastAPI:
     try:
         # Run Airbyte Pipeline Sync
         setup_airbyte_connections()
-
-        # Setup Mindsdb instance
-        setup_mindsdb_server()
 
         # Setup Slack chatbot and knowledge base
         setup_slack_chatbot_kb()

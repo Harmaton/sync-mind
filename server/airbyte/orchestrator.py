@@ -56,32 +56,10 @@ def setup_airbyte_connections():
                     sourceId=shopify_source.get("sourceId"),
                     destinationId=mongo_dest.get("destinationId")
                 )
-                sync_result = run_sync(sync_config)
-                logger.info(f"Sync result: {sync_result}")
+                run_sync(sync_config)
             except Exception as e:
                 logger.error("Failed to run Airbyte sync", exc_info=True)
                 return
-
-            # After sync, connect MongoDB as a datasource on MindsDB
-            mindsdb_url = connect_to_mindsdb()
-            datasource_name = "shopify_mongo"
-            mongo_conf = mongo_dest.get("configuration", {})
-            payload = {
-                "engine": "mongodb",
-                "connection_data": {
-                    "host": mongo_conf.get("instance_type", {}).get("cluster_url", ""),
-                    "user": mongo_conf.get("auth_type", {}).get("username", ""),
-                    "password": mongo_conf.get("auth_type", {}).get("password", ""),
-                    "database": mongo_conf.get("database", "")
-                }
-            }
-            headers = {"Content-Type": "application/json"}
-            try:
-                resp = requests.post(f"{mindsdb_url}/databases/{datasource_name}", json=payload, headers=headers)
-                resp.raise_for_status()
-                logger.info(f"Connected MongoDB destination as MindsDB datasource: {datasource_name}")
-            except Exception as e:
-                logger.error(f"Failed to connect MongoDB as MindsDB datasource: {str(e)}", exc_info=True)
         else:
             logger.warning("Shopify source or MongoDB destination missing, cannot run sync.")
     except Exception as e:

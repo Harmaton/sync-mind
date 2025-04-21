@@ -16,29 +16,33 @@ DEFAULT_PREDICT_FIELD = "target_field"  # Change to your actual target
 
 def create_slack_datasource():
     """
-    Creates the Slack MongoDB datasource using MindsDB REST API.
+    Creates the Slack MongoDB datasource using MindsDB SQL API (CREATE DATABASE ... WITH ENGINE = 'mongodb').
     """
-    url = f"{MINDSDB_API}/api/databases"
-    payload = {
-        "name": DEFAULT_DATASOURCE,
-        "engine": "mongodb",
-        "connection_data": {
-            "host": settings.mongo_cluster_url,
-            "user": settings.mongo_username,
-            "password": settings.mongo_password,
-            "database": settings.mongo_database
-        }
-    }
+    from settings import Settings
+    settings = Settings()
+    url = f"{MINDSDB_API}/sql/query"
+    sql = f'''
+    CREATE DATABASE {DEFAULT_DATASOURCE}
+    WITH
+      ENGINE = 'mongodb',
+      PARAMETERS = {{
+        "host": "{settings.mongo_cluster_url}",
+        "username": "{settings.mongo_username}",
+        "password": "{settings.mongo_password}",
+        "database": "{settings.mongo_database}"
+      }};
+    '''
     headers = {"Content-Type": "application/json"}
     try:
-        resp = requests.post(url, json=payload, headers=headers)
+        resp = requests.post(url, json={"query": sql}, headers=headers)
+        logger.info("Datasource creation response", response=resp.text)
         if resp.status_code not in (200, 201, 409):
-            logger.error("Failed to create datasource via REST API", details=resp.text)
+            logger.error("Failed to create datasource", details=resp.text)
             return False
         logger.info("Datasource created or already exists", name=DEFAULT_DATASOURCE)
         return resp.json()
     except Exception as e:
-        logger.error("Error creating datasource via REST API", error=str(e))
+        logger.error("Error creating datasource via SQL API", error=str(e))
         return False
 
 
@@ -50,13 +54,11 @@ def setup_slack_chatbot_kb():
         logger.error("Error creating datasource", error=str(e))
         return False
 
-    # 3. Create Knowledge Base (if SQL supported, otherwise keep REST)
+    # 2. Create Knowledge Base
     try:
-        sql = f"""
-        CREATE KNOWLEDGE BASE {DEFAULT_PROJECT}.{DEFAULT_KB}
-        FROM {DEFAULT_DATASOURCE};
-        """
-        r = requests.post(f"{MINDSDB_API}/api/sql/query", json={"query": sql})
+        sql = f"CREATE KNOWLEDGE_BASE mindsdb.{DEFAULT_KB};"
+        r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})
+        logger.info("Knowledge base creation response", response=r.text)
         if r.status_code not in (200, 201, 409):
             logger.error("Failed to create knowledge base", details=r.text)
             return False
