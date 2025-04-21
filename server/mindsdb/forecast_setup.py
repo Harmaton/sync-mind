@@ -10,8 +10,7 @@ MINDSDB_API = settings.mindsdb_url.rstrip('/')
 PROJECT = "slack_project"
 FORECAST_MODEL = "sales_forecast"
 DATASOURCE = "shopify_mongo"
-TABLE = "shopify_orders"  # Change if your collection name is different
-
+TABLE = "shopify_orders"
 
 def setup_forecast_model():
     """

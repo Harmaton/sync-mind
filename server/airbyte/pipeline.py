@@ -129,26 +129,65 @@ def run_sync(config: SyncConfig) -> dict:
         if not access_token:
             raise ValueError("Failed to obtain access token")
 
+        # 1. Fetch all connections and log them for debugging
+        list_url = "https://api.airbyte.com/v1/connections"
+        list_headers = {
+            "accept": "application/json",
+            "Authorization": f"Bearer {access_token}"
+        }
+        list_resp = requests.get(list_url, headers=list_headers)
+        list_resp.raise_for_status()
+        all_connections = list_resp.json().get("data", []) 
+
+        # Try to find a connection with same sourceId and destinationId
+        for c in all_connections:
+            if c.get("sourceId") == config.sourceId and c.get("destinationId") == config.destinationId:
+                logger.info("Found existing Airbyte connection")
+                # If a sync is already running or recently triggered, do not trigger again
+                if c.get("status") == "active":
+                    logger.info("Sync already running or recently triggered; skipping new sync trigger.")
+                    return {"existing_connection": c, "sync_skipped": True}
+                # Otherwise, trigger a sync job for this connection
+                job_url = "https://api.airbyte.com/v1/jobs"
+                job_payload = {"connectionId": c["connectionId"], "jobType": "sync"}
+                job_headers = {
+                    "accept": "application/json",
+                    "content-type": "application/json",
+                    "Authorization": f"Bearer {access_token}"
+                }
+                job_resp = requests.post(job_url, json=job_payload, headers=job_headers)
+                job_resp.raise_for_status()
+                logger.info(f"Triggered sync job for existing connection: {job_resp.json()}")
+                return {"existing_connection": c, "sync_job": job_resp.json()}
+
+        # 2. If not found, create a new connection with cron schedule
         url = "https://api.airbyte.com/v1/connections"
         headers = {
             "accept": "application/json",
             "content-type": "application/json",
             "Authorization": f"Bearer {access_token}"
         }
-        # Use default connection settings as per Airbyte docs
+        # Use the working cron expression 
+        cron_expr = "0 0 * * * ?" 
         payload = {
             "sourceId": config.sourceId,
             "destinationId": config.destinationId,
+            "name": "Shopify-Mongo Connection",
             "schedule": {
                 "scheduleType": "cron",
-                "cronExpression": "0 0 * * * ?"
-            }
+                "cronExpression": cron_expr
+            },
+            "namespaceDefinition": "destination",
+            "nonBreakingSchemaUpdatesBehavior": "ignore"
         }
-        # Remove keys with None values
-        payload = {k: v for k, v in payload.items() if v is not None}
-
+        logger.info(f"Creating Airbyte connection with payload: {payload}")
         response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except Exception as e:
+            logger.error("Airbyte connection creation failed", status_code=response.status_code, response=response.text)
+            raise
+        logger.info(f"Airbyte connection creation response: {response.text}")
         return response.json()
     except requests.exceptions.RequestException as e:
         logger.error("Error running sync", error=str(e), response=getattr(e.response, 'text', None))

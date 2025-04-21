@@ -6,7 +6,7 @@ logger = structlog.get_logger(__name__)
 settings = Settings()
 
 MINDSDB_API = settings.mindsdb_url.rstrip('/')
-DEFAULT_PROJECT = "slack_project"
+DEFAULT_PROJECT = "airbyte_hackathon"
 DEFAULT_DATASOURCE = "shopify_mongo"
 DEFAULT_KB = "slack_kb"
 DEFAULT_MODEL = "shopify_model"
@@ -14,39 +14,40 @@ DEFAULT_AGENT = "slack_agent"
 DEFAULT_MONGO_COLLECTION = "shopify_collection"  # Change if needed
 DEFAULT_PREDICT_FIELD = "target_field"  # Change to your actual target
 
-def setup_slack_chatbot_kb():
-    # 1. Create Project (as SQL CREATE DATABASE)
+def create_slack_datasource():
+    """
+    Creates the Slack MongoDB datasource using MindsDB REST API.
+    """
+    url = f"{MINDSDB_API}/api/databases"
+    payload = {
+        "name": DEFAULT_DATASOURCE,
+        "engine": "mongodb",
+        "connection_data": {
+            "host": settings.mongo_cluster_url,
+            "user": settings.mongo_username,
+            "password": settings.mongo_password,
+            "database": settings.mongo_database
+        }
+    }
+    headers = {"Content-Type": "application/json"}
     try:
-        sql = f"CREATE DATABASE {DEFAULT_PROJECT};"
-        r = requests.post(f"{MINDSDB_API}/api/sql/query", json={"query": sql})
-        if r.status_code not in (200, 201, 409):
-            logger.error("Failed to create project (database)", details=r.text)
+        resp = requests.post(url, json=payload, headers=headers)
+        if resp.status_code not in (200, 201, 409):
+            logger.error("Failed to create datasource via REST API", details=resp.text)
             return False
-        logger.info("Project (database) created or already exists", name=DEFAULT_PROJECT)
+        logger.info("Datasource created or already exists", name=DEFAULT_DATASOURCE)
+        return resp.json()
     except Exception as e:
-        logger.error("Error creating project (database)", error=str(e))
+        logger.error("Error creating datasource via REST API", error=str(e))
         return False
 
-    # 2. Register MongoDB datasource (keep REST if no SQL equivalent)
+
+def setup_slack_chatbot_kb():
+    # 1. Create Datasource
     try:
-        ds_payload = {
-            "name": DEFAULT_DATASOURCE,
-            "engine": "mongodb",
-            "parameters": {
-                "host": settings.mongo_cluster_url,
-                "port": 27017,
-                "username": settings.mongo_username,
-                "password": settings.mongo_password,
-                "database": settings.mongo_database
-            }
-        }
-        r = requests.post(f"{MINDSDB_API}/api/datasources", json=ds_payload)
-        if r.status_code not in (200, 201, 409):
-            logger.error("Failed to register datasource", details=r.text)
-            return False
-        logger.info("Datasource registered or already exists", name=DEFAULT_DATASOURCE)
+        create_slack_datasource()
     except Exception as e:
-        logger.error("Error registering datasource", error=str(e))
+        logger.error("Error creating datasource", error=str(e))
         return False
 
     # 3. Create Knowledge Base (if SQL supported, otherwise keep REST)
