@@ -1,10 +1,11 @@
 import os
 import structlog
-import requests
 from fastapi import APIRouter, Request
 from settings import Settings
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from mindsdb import store_slack_message, store_slack_thread_message
+from mindsdb import gemini_retrieve_answer, shopify_text2sql_answer
 
 logger = structlog.get_logger(__name__)
 settings = Settings()
@@ -46,20 +47,22 @@ async def slack_events(request: Request):
         bot_user_id = settings.slack_bot_user_id or user
         mention = f"<@{bot_user_id}>"
         clean_text = text.replace(mention, "").strip()
+        # Store the mention event
+        store_slack_message(channel, text)
         try:
             slack_client.chat_postMessage(channel=channel, text="Working on it...", thread_ts=thread_ts)
         except SlackApiError as e:
             logger.error("Failed to send 'working on it' reply via Slack SDK", error=str(e))
         try:
-            resp = requests.post(f"{MINDSDB_API}/api/projects/{PROJECT}/chatbots/{CHATBOT}/completions", json={"question": clean_text, "user": user})
-            logger.info("MindsDB chatbot API response", status_code=resp.status_code, response=resp.text)
-            if resp.status_code == 200:
-                answer = resp.json().get("answer", "[No answer returned]")
+            # Decide which retriever to use based on question type
+            if any(word in clean_text.lower() for word in ["order", "shopify", "product", "customer"]):
+                answer = shopify_text2sql_answer(clean_text)
             else:
-                answer = f"[MindsDB error: {resp.text}]"
+                # Optionally fetch previous messages for context (not implemented, pass None)
+                answer = gemini_retrieve_answer(clean_text, previous_messages=None)
         except Exception as e:
-            logger.error("MindsDB chatbot error", error=str(e))
-            answer = f"Sorry, I couldn't process your request. MindsDB error: {str(e)}"
+            logger.error("Retriever error", error=str(e))
+            answer = f"Sorry, I couldn't process your request. Error: {str(e)}"
         try:
             slack_client.chat_postMessage(channel=channel, text=answer, thread_ts=thread_ts)
         except SlackApiError as e:
@@ -69,20 +72,23 @@ async def slack_events(request: Request):
     # Handle thread replies (message events in a thread, not from a bot)
     elif event_type == "message" and thread_ts and not event.get("bot_id"):
         logger.info("Handling thread reply", text=text, user=user, channel=channel, thread_ts=thread_ts)
+        # Store the thread reply event
+        store_slack_thread_message(channel, thread_ts, text)
         try:
             slack_client.chat_postMessage(channel=channel, text="Working on it...", thread_ts=thread_ts)
         except SlackApiError as e:
             logger.error("Failed to send 'working on it' reply via Slack SDK", error=str(e))
         try:
-            resp = requests.post(f"{MINDSDB_API}/api/projects/{PROJECT}/chatbots/{CHATBOT}/completions", json={"question": text, "user": user})
-            logger.info("MindsDB chatbot API response", status_code=resp.status_code, response=resp.text)
-            if resp.status_code == 200:
-                answer = resp.json().get("answer", "[No answer returned]")
+            # Decide which retriever to use based on question type
+            if any(word in text.lower() for word in ["order", "shopify", "product", "customer"]):
+                # answer = shopify_text2sql_answer(text)
+                answer = gemini_retrieve_answer(clean_text, previous_messages=None)
             else:
-                answer = f"[MindsDB error: {resp.text}]"
+                # Optionally fetch previous messages for context (not implemented, pass None)
+                answer = gemini_retrieve_answer(text, previous_messages=None)
         except Exception as e:
-            logger.error("MindsDB chatbot error", error=str(e))
-            answer = f"Sorry, I couldn't process your request. MindsDB error: {str(e)}"
+            logger.error("Retriever error", error=str(e))
+            answer = f"Sorry, I couldn't process your request. Error: {str(e)}"
         try:
             slack_client.chat_postMessage(channel=channel, text=answer, thread_ts=thread_ts)
         except SlackApiError as e:
