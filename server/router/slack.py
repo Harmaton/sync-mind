@@ -1,10 +1,7 @@
 import os
 import structlog
-import hmac
-import hashlib
-import re
 import requests
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request
 from settings import Settings
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -21,20 +18,6 @@ CHATBOT = "slack_chatbot"
 slack_client = WebClient(token=settings.slack_bot_token)
 
 slack_router = APIRouter(prefix="/slack", tags=["slack"])
-
-# Helper: Verify Slack signature
-def verify_slack_signature(request: Request, body: bytes) -> bool:
-    timestamp = request.headers.get('X-Slack-Request-Timestamp')
-    slack_signature = request.headers.get('X-Slack-Signature')
-    if not timestamp or not slack_signature:
-        return False
-    sig_basestring = f"v0:{timestamp}:{body.decode()}"
-    my_signature = 'v0=' + hmac.new(
-        SLACK_SIGNING_SECRET.encode(),
-        sig_basestring.encode(),
-        hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(my_signature, slack_signature)
 
 @slack_router.post("/events")
 async def slack_events(request: Request):
@@ -60,16 +43,13 @@ async def slack_events(request: Request):
     # Handle mentions (app_mention)
     if event_type == "app_mention":
         logger.info("Handling app_mention event", text=text, user=user, channel=channel)
-        # Remove bot mention from text
         bot_user_id = settings.slack_bot_user_id or user
         mention = f"<@{bot_user_id}>"
         clean_text = text.replace(mention, "").strip()
-        # 1. Immediately reply: Working on it...
         try:
             slack_client.chat_postMessage(channel=channel, text="Working on it...", thread_ts=thread_ts)
         except SlackApiError as e:
             logger.error("Failed to send 'working on it' reply via Slack SDK", error=str(e))
-        # 2. Query MindsDB chatbot
         try:
             resp = requests.post(f"{MINDSDB_API}/api/projects/{PROJECT}/chatbots/{CHATBOT}/completions", json={"question": clean_text, "user": user})
             logger.info("MindsDB chatbot API response", status_code=resp.status_code, response=resp.text)
@@ -80,7 +60,29 @@ async def slack_events(request: Request):
         except Exception as e:
             logger.error("MindsDB chatbot error", error=str(e))
             answer = f"Sorry, I couldn't process your request. MindsDB error: {str(e)}"
-        # 3. Reply in thread using Slack SDK
+        try:
+            slack_client.chat_postMessage(channel=channel, text=answer, thread_ts=thread_ts)
+        except SlackApiError as e:
+            logger.error("Failed to send reply via Slack SDK", error=str(e))
+        return {"ok": True}
+
+    # Handle thread replies (message events in a thread, not from a bot)
+    elif event_type == "message" and thread_ts and not event.get("bot_id"):
+        logger.info("Handling thread reply", text=text, user=user, channel=channel, thread_ts=thread_ts)
+        try:
+            slack_client.chat_postMessage(channel=channel, text="Working on it...", thread_ts=thread_ts)
+        except SlackApiError as e:
+            logger.error("Failed to send 'working on it' reply via Slack SDK", error=str(e))
+        try:
+            resp = requests.post(f"{MINDSDB_API}/api/projects/{PROJECT}/chatbots/{CHATBOT}/completions", json={"question": text, "user": user})
+            logger.info("MindsDB chatbot API response", status_code=resp.status_code, response=resp.text)
+            if resp.status_code == 200:
+                answer = resp.json().get("answer", "[No answer returned]")
+            else:
+                answer = f"[MindsDB error: {resp.text}]"
+        except Exception as e:
+            logger.error("MindsDB chatbot error", error=str(e))
+            answer = f"Sorry, I couldn't process your request. MindsDB error: {str(e)}"
         try:
             slack_client.chat_postMessage(channel=channel, text=answer, thread_ts=thread_ts)
         except SlackApiError as e:
