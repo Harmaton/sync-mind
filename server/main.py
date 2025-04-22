@@ -55,11 +55,11 @@ def create_app() -> FastAPI:
         # Setup Slack chatbot and knowledge base
         setup_slack_chatbot_kb()
 
-        # Setup Text2SQL skill
-        setup_text2sql_skill()
+        # # Setup Text2SQL skill
+        # setup_text2sql_skill()
         
-        # Setup Forecasting model
-        setup_forecast_model()
+        # # Setup Forecasting model
+        # setup_forecast_model()
         
 
         # Register routers
@@ -80,7 +80,7 @@ app = create_app()
 def start() -> None:
     try:
         logger.info(f"Starting Sync Mind API on port {settings.port}")
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=8080)
     except Exception as e:
         logger.error(f"Failed to start application: {str(e)}")
         raise

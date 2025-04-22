@@ -6,7 +6,7 @@ logger = structlog.get_logger(__name__)
 settings = Settings()
 
 MINDSDB_API = settings.mindsdb_url.rstrip('/')
-DEFAULT_PROJECT = "airbyte_hackathon"
+DEFAULT_PROJECT = "mindsdb"
 DEFAULT_DATASOURCE = "shopify_mongo"
 DEFAULT_KB = "slack_kb"
 DEFAULT_MODEL = "shopify_model"
@@ -24,13 +24,10 @@ def create_slack_datasource():
     sql = f'''
     CREATE DATABASE {DEFAULT_DATASOURCE}
     WITH
-      ENGINE = 'mongodb',
-      PARAMETERS = {{
-        "host": "{settings.mongo_cluster_url}",
-        "username": "{settings.mongo_username}",
-        "password": "{settings.mongo_password}",
-        "database": "{settings.mongo_database}"
-      }};
+    ENGINE = 'mongodb',
+    PARAMETERS = {{
+        "host": "mongodb+srv://{settings.mongo_username}:{settings.mongo_password}@{settings.mongo_cluster_url}/{settings.mongo_database}"
+    }};
     '''
     headers = {"Content-Type": "application/json"}
     try:
@@ -45,7 +42,6 @@ def create_slack_datasource():
         logger.error("Error creating datasource via SQL API", error=str(e))
         return False
 
-
 def setup_slack_chatbot_kb():
     # 1. Create Datasource
     try:
@@ -54,9 +50,11 @@ def setup_slack_chatbot_kb():
         logger.error("Error creating datasource", error=str(e))
         return False
 
-    # 2. Create Knowledge Base
+    # 2. Create Knowledge Base (with optional embedding model)
     try:
-        sql = f"CREATE KNOWLEDGE_BASE mindsdb.{DEFAULT_KB};"
+        sql = f"""
+        CREATE KNOWLEDGE_BASE mindsdb.{DEFAULT_KB};
+        """
         r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})
         logger.info("Knowledge base creation response", response=r.text)
         if r.status_code not in (200, 201, 409):
@@ -67,52 +65,128 @@ def setup_slack_chatbot_kb():
         logger.error("Error creating knowledge base", error=str(e))
         return False
 
-    # 4. Create Model (SQL endpoint)
+    # 3. Populate Knowledge Base from MongoDB
     try:
         sql = f"""
-        CREATE MODEL {DEFAULT_PROJECT}.{DEFAULT_MODEL} 
-        PREDICT {DEFAULT_PREDICT_FIELD} 
-        USING engine = 'mongodb', datasource = '{DEFAULT_DATASOURCE}', table = '{DEFAULT_MONGO_COLLECTION}';
+        INSERT INTO mindsdb.{DEFAULT_KB} (content)
+        SELECT orders AS content FROM {DEFAULT_DATASOURCE}.orders;
         """
-        sql_payload = {"query": sql}
-        r = requests.post(f"{MINDSDB_API}/api/sql/query", json=sql_payload)
+        r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})
+        logger.info("Knowledge base population response", response=r.text)
         if r.status_code not in (200, 201, 409):
-            logger.error("Failed to create model", details=r.text)
+            logger.error("Failed to populate knowledge base", details=r.text)
             return False
-        logger.info("Model created or already exists", name=DEFAULT_MODEL)
+        logger.info("Knowledge base populated with MongoDB data", name=DEFAULT_KB)
     except Exception as e:
-        logger.error("Error creating model", error=str(e))
+        logger.error("Error populating knowledge base", error=str(e))
         return False
 
-    # 5. Create Agent (SQL if supported, else REST fallback)
+    # 4. Create Knowledge Base Skill
     try:
         sql = f"""
-        CREATE AGENT {DEFAULT_PROJECT}.{DEFAULT_AGENT}
-        USING MODEL = '{DEFAULT_MODEL}', SKILLS = ['knowledge_base', 'text2sql'];
+        CREATE SKILL slack_kb_skill
+        USING
+            type = 'knowledge_base',
+            source = 'mindsdb.{DEFAULT_KB}',
+            description = 'Slack knowledge base for Shopify data';
         """
-        r = requests.post(f"{MINDSDB_API}/api/sql/query", json={"query": sql})
+        r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})
+        logger.info("Knowledge base skill creation response", response=r.text)
+        if r.status_code not in (200, 201, 409):
+            logger.error("Failed to create knowledge base skill", details=r.text)
+            return False
+        logger.info("Knowledge base skill created or already exists", name='slack_kb_skill')
+    except Exception as e:
+        logger.error("Error creating knowledge base skill", error=str(e))
+        return False
+
+    # 5. Create Text2SQL Skill
+    try:
+        sql = f"""
+        CREATE SKILL slack_text2sql_skill
+        USING
+            type = 'text2sql',
+            database = '{DEFAULT_DATASOURCE}',
+            tables = ['orders'],
+            description = 'Text-to-SQL skill for querying Shopify data in MongoDB.';
+        """
+        r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})
+        logger.info("Text2SQL skill creation response", response=r.text)
+        if r.status_code not in (200, 201, 409):
+            logger.error("Failed to create Text2SQL skill", details=r.text)
+            return False
+        logger.info("Text2SQL skill created or already exists", name='slack_text2sql_skill')
+    except Exception as e:
+        logger.error("Error creating Text2SQL skill", error=str(e))
+        return False
+
+    # 6. Create Conversational Model (AI Model)
+    try:
+        sql = f"""
+        CREATE MODEL slack_convo_model
+        PREDICT answer
+        USING
+            engine = 'langchain',
+            provider = 'gemini',
+            gemini_api_key = '{settings.gemini_api_key}',
+            model_name = 'gemini-pro',
+            mode = 'conversational',
+            user_column = 'question',
+            assistant_column = 'answer',
+            max_tokens = 100,
+            temperature = 0,
+            verbose = True,
+            prompt_template = 'Answer the user input in a helpful way using tools';
+        """
+        r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})
+        logger.info("Conversational model creation response", response=r.text)
+        if r.status_code not in (200, 201, 409):
+            logger.error("Failed to create conversational model", details=r.text)
+            return False
+        logger.info("Conversational model created or already exists", name='slack_convo_model')
+    except Exception as e:
+        logger.error("Error creating conversational model", error=str(e))
+        return False
+
+    # 7. Create Agent
+    try:
+        sql = f"""
+        CREATE AGENT slack_agent
+        USING
+            model = 'slack_convo_model',
+            skills = ['slack_kb_skill', 'slack_text2sql_skill'];
+        """
+        r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})
+        logger.info("Agent creation response", response=r.text)
         if r.status_code not in (200, 201, 409):
             logger.error("Failed to create agent", details=r.text)
             return False
-        logger.info("Agent created or already exists", name=DEFAULT_AGENT)
+        logger.info("Agent created or already exists", name='slack_agent')
     except Exception as e:
         logger.error("Error creating agent", error=str(e))
         return False
 
-    # 6. Create Chatbot (SQL if supported, else REST fallback)
+    # 8.  Create Chatbot (if Slack DB exists)
     try:
         sql = f"""
-        CREATE CHATBOT {DEFAULT_PROJECT}.startupslack
-        USING DATABASE = '{DEFAULT_DATASOURCE}', AGENT = '{DEFAULT_AGENT}';
+        CREATE CHATBOT slack_chatbot
+        USING
+            database = '{DEFAULT_DATASOURCE}',
+            agent = 'slack_agent',
+            is_running = true;
         """
-        r = requests.post(f"{MINDSDB_API}/api/sql/query", json={"query": sql})
+        r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})
+        logger.info("Chatbot creation response", response=r.text)
         if r.status_code not in (200, 201, 409):
             logger.error("Failed to create chatbot", details=r.text)
             return False
-        logger.info("Chatbot created or already exists", name="startupslack")
+        logger.info("Chatbot created or already exists", name='slack_chatbot')
     except Exception as e:
         logger.error("Error creating chatbot", error=str(e))
         return False
 
-    logger.info("Slack chatbot knowledge base and chatbot setup complete!")
+    # 9. Wire up  Slack chatbot setup
+    # (Removed automatic hello message to channel on startup)
     return True
+
+logger.info("Slack chatbot knowledge base and chatbot setup complete!")
