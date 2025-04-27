@@ -29,11 +29,6 @@ class SyncResponse(BaseModel):
 class MindsDBPingResponse(BaseModel):
     status: str
 
-class SyncStatusResponse(BaseModel):
-    shopify: str
-    postgresql: str
-    customer_service: str
-
 class HealthStatusResponse(BaseModel):
     status: str
     channel: str

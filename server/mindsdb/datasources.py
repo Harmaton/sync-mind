@@ -9,7 +9,7 @@ DEFAULT_DATASOURCE = "stocks_db"
 
 def create_slack_datasource_in_mindsdb():
     sql = f"""
-    CREATE DATABASE IF NOT EXISTS slack_datasource
+    CREATE DATABASE IF NOT EXISTS {DEFAULT_DATASOURCE}
     WITH
       ENGINE = 'slack',
       PARAMETERS = {{

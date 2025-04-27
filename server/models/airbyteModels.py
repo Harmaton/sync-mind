@@ -22,11 +22,6 @@ class PostgresConfig(BaseModel):
     host: str
     password: str
 
-class ShopifyConfig(BaseModel):
-    api_key: str
-    api_secret: str
-    store_name: str
-    access_token: str
 
 class MongoDBConfig(BaseModel):
     workspaceId: str

@@ -1,7 +1,7 @@
 import structlog
 from .datasources import create_slack_datasource_in_mindsdb, create_mongo_datasource
-from .engines import create_google_gemini_engine
-from .models import create_gemini_model
+from .engines import create_google_gemini_engine, create_forecast_engine
+from .models import create_gemini_model, create_forecast_model
 from .skills import (
     create_stocks_text2sql_skill
 )
@@ -30,11 +30,17 @@ def mindsdb_setup():
     if not create_gemini_model():
         logger.error("Failed to create Gemini model")
         return False
+    if not create_forecast_engine():
+        logger.error("Failed to create Forecast engine")
+        return False
+    if not create_forecast_model():
+        logger.error("Failed to create Forecast model")
+        return False
     if not create_advisor_agent():
-        logger.error("Failed to create Slack chatbot")
+        logger.error("Failed to create Advisor agent")
         return False
     if not create_advisor_chatbot():
-        logger.error("Failed to create Slack chatbot")
+        logger.error("Failed to create Advisor chatbot")
         return False
     logger.info("Slack chatbot knowledge base and chatbot setup complete!")
     return True

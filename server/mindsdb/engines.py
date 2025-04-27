@@ -24,3 +24,21 @@ def create_google_gemini_engine():
     except Exception as e:
         logger.error("Error creating Google Gemini engine", error=str(e))
         return False
+
+
+def create_forecast_engine():
+    sql = f"""
+    CREATE ML_ENGINE IF NOT EXISTS forecast_engine
+    FROM statsforecast;
+    """
+    try:
+        r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})
+        logger.info("Forecast engine creation response", response=r.text)
+        if r.status_code not in (200, 201, 409):
+            logger.error("Failed to create forecast engine", details=r.text)
+            return False
+        logger.info("Forecast engine created or already exists", name='forecast_engine')
+        return True
+    except Exception as e:
+        logger.error("Error creating forecast engine", error=str(e))
+        return False

@@ -5,7 +5,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from mindsdb import store_slack_message, store_slack_thread_message
 import re
-from router.journal import TradeJournalEntry, db, MONGO_COLLECTION
+from mindsdb import polygon_text2sql_answer, gemini_retrieve_answer, make_prediction
 
 logger = structlog.get_logger(__name__)
 settings = Settings()
@@ -75,11 +75,12 @@ async def slack_events(request: Request):
         except SlackApiError as e:
             logger.error("Failed to send 'working on it' reply via Slack SDK", error=str(e))
         try:
-            # Decide which retriever to use based on question type
-            if any(word in clean_text.lower() for word in ["order", "shopify", "product", "customer"]):
-                answer = shopify_text2sql_answer(clean_text)
+            lower = clean_text.lower()
+            if "forecast" in lower or "predict" in lower:
+                answer = make_prediction(clean_text)
+            elif any(word in lower for word in ["order", "trade", "buy", "sell", "position", "stop", "take profit"]):
+                answer = polygon_text2sql_answer(clean_text)
             else:
-                # Optionally fetch previous messages for context (not implemented, pass None)
                 answer = gemini_retrieve_answer(clean_text, previous_messages=None)
         except Exception as e:
             logger.error("Retriever error", error=str(e))
@@ -100,12 +101,12 @@ async def slack_events(request: Request):
         except SlackApiError as e:
             logger.error("Failed to send 'working on it' reply via Slack SDK", error=str(e))
         try:
-            # Decide which retriever to use based on question type
-            if any(word in text.lower() for word in ["order", "shopify", "product", "customer"]):
-                # answer = shopify_text2sql_answer(text)
-                answer = gemini_retrieve_answer(text, previous_messages=None)
+            lower = text.lower()
+            if "forecast" in lower or "predict" in lower:
+                answer = make_prediction(text)
+            elif any(word in lower for word in ["order", "trade", "buy", "sell", "position", "stop", "take profit"]):
+                answer = polygon_text2sql_answer(text)
             else:
-                # Optionally fetch previous messages for context (not implemented, pass None)
                 answer = gemini_retrieve_answer(text, previous_messages=None)
         except Exception as e:
             logger.error("Retriever error", error=str(e))

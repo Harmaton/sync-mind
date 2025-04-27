@@ -11,7 +11,7 @@ def create_advisor_agent():
     CREATE AGENT advisor_agent
     WITH
       model = 'google_gemini_model',
-      skills = ['text_to_sql_skill'];
+      skills = ['stocks_text2sql_skill'];
     """
     try:
         r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})

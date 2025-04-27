@@ -20,10 +20,10 @@ def create_stocks_text2sql_skill():
         r = requests.post(f"{MINDSDB_API}/sql/query", json={"query": sql})
         logger.info("Stocks Text2SQL skill creation response", response=r.text)
         if r.status_code not in (200, 201, 409):
-            logger.error("Failed to create Shopify Text2SQL skill", details=r.text)
+            logger.error("Failed to create Text2SQL skill", details=r.text)
             return False
-        logger.info("Shopify Text2SQL skill created or already exists", name='shopify_text2sql_skill')
+        logger.info("Stocks Text2SQL skill created or already exists", name='stocks_text2sql_skill')
         return True
     except Exception as e:
-        logger.error("Error creating Shopify Text2SQL skill", error=str(e))
+        logger.error("Error creating Text2SQL skill", error=str(e))
         return False

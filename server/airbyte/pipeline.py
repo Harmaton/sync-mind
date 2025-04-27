@@ -172,7 +172,7 @@ def run_sync(config: SyncConfig) -> dict:
         payload = {
             "sourceId": config.sourceId,
             "destinationId": config.destinationId,
-            "name": "Shopify-Mongo Connection",
+            "name": "Polygon-Mongo Connection",
             "schedule": {
                 "scheduleType": "cron",
                 "cronExpression": cron_expr
