@@ -2,7 +2,6 @@ import structlog
 from fastapi import APIRouter, HTTPException, Depends
 from mindsdb import connect_to_mindsdb, list_datasources
 from models import  MindsDBPingResponse
-from mindsdb import query_ten, show_handlers
 
 logger = structlog.get_logger(__name__)
 
@@ -21,27 +20,6 @@ def get_mindsdb_service():
             status_code=503, 
             detail="MindsDB service unavailable"
         )
-
-@mindsdb_router.get("/query")
-async def query():
-    try:
-        return query_ten()
-    except Exception as e:
-        logger.error(f"Error querying MindsDB: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to query MindsDB: {str(e)}"
-        )
-@mindsdb_router.get("/handlers")
-async def handlers():
-        try:
-            return show_handlers()
-        except Exception as e:
-            logger.error(f"Error showing handlers: {str(e)}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to show handlers: {str(e)}"
-            )
 
 @mindsdb_router.get("/ping", response_model=MindsDBPingResponse)
 async def ping_mindsdb(
@@ -91,7 +69,6 @@ async def get_datasource(
     """Get information about a specific datasource"""
     try:
         datasources = list_datasources(mindsdb_service)
-        # Assuming datasources is a list of names or a list of dicts with 'name' field
         if isinstance(datasources[0], dict):
             datasource_names = [d.get('name') for d in datasources]
         else:
@@ -99,8 +76,7 @@ async def get_datasource(
             
         if datasource_name not in datasource_names:
             return {"message": f"Datasource '{datasource_name}' not found"}
-        
-        # Return more detailed info if available
+
         for source in datasources:
             if isinstance(source, dict) and source.get('name') == datasource_name:
                 return {"datasource": source}

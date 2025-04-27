@@ -6,7 +6,6 @@ logger = structlog.get_logger(__name__)
 settings = Settings()
 MINDSDB_API = settings.mindsdb_url.rstrip('/')
 
-
 def gemini_retrieve_answer(question: str, previous_messages: list = None) -> str:
     """
     Query the Gemini model in MindsDB to get an answer to the question, optionally providing previous Slack messages as context.

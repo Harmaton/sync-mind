@@ -1,20 +1,14 @@
-import os
 import structlog
 from fastapi import APIRouter, Request
 from settings import Settings
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from mindsdb import store_slack_message, store_slack_thread_message
-from mindsdb import gemini_retrieve_answer, shopify_text2sql_answer
+import re
+from router.journal import TradeJournalEntry, db, MONGO_COLLECTION
 
 logger = structlog.get_logger(__name__)
 settings = Settings()
-
-SLACK_SIGNING_SECRET = settings.slack_signing_secret
-SLACK_BOT_TOKEN = settings.slack_bot_token or os.environ.get("SLACK_BOT_TOKEN")
-MINDSDB_API = settings.mindsdb_url.rstrip('/')
-PROJECT = "mindsdb"
-CHATBOT = "slack_chatbot"
 
 slack_client = WebClient(token=settings.slack_bot_token)
 
@@ -41,10 +35,37 @@ async def slack_events(request: Request):
     channel = event.get("channel")
     text = event.get("text", "")
 
+    def parse_trade_message(text):
+        pattern = r"/trade\\s+(\\w+)\\s+(Buy|Sell)\\s+([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\s+([^\\s]+)\\s*(.*)"
+        match = re.match(pattern, text)
+        if not match:
+            return None
+        return {
+            "symbol": match.group(1),
+            "direction": match.group(2),
+            "size": float(match.group(3)),
+            "entry_price": float(match.group(4)),
+            "stop_loss": float(match.group(5)),
+            "take_profit": float(match.group(6)),
+            "datetime": match.group(7),
+            "notes": match.group(8),
+        }
+
+    # Handle trade journal entry via Slack command
+    trade_data = parse_trade_message(text)
+    if trade_data:
+        try:
+            entry = TradeJournalEntry(**trade_data)
+            db[MONGO_COLLECTION].insert_one(entry.dict())
+            slack_client.chat_postMessage(channel=channel, text="✅ Trade journal entry saved!", thread_ts=thread_ts)
+        except Exception as e:
+            slack_client.chat_postMessage(channel=channel, text=f"❌ Failed to save trade: {str(e)}", thread_ts=thread_ts)
+        return {"ok": True}
+
     # Handle mentions (app_mention)
     if event_type == "app_mention":
         logger.info("Handling app_mention event", text=text, user=user, channel=channel)
-        bot_user_id = settings.slack_bot_user_id or user
+        bot_user_id = user
         mention = f"<@{bot_user_id}>"
         clean_text = text.replace(mention, "").strip()
         # Store the mention event
@@ -82,7 +103,7 @@ async def slack_events(request: Request):
             # Decide which retriever to use based on question type
             if any(word in text.lower() for word in ["order", "shopify", "product", "customer"]):
                 # answer = shopify_text2sql_answer(text)
-                answer = gemini_retrieve_answer(clean_text, previous_messages=None)
+                answer = gemini_retrieve_answer(text, previous_messages=None)
             else:
                 # Optionally fetch previous messages for context (not implemented, pass None)
                 answer = gemini_retrieve_answer(text, previous_messages=None)
@@ -94,9 +115,5 @@ async def slack_events(request: Request):
         except SlackApiError as e:
             logger.error("Failed to send reply via Slack SDK", error=str(e))
         return {"ok": True}
-
-    # Optionally: handle direct messages (message.im)
-    # elif event_type == "message" and event.get("channel_type") == "im":
-    #     ...
 
     return {"ok": True}

@@ -18,26 +18,3 @@ def list_datasources(base_url):
         print(f"Error fetching datasources: {str(e)}")
         return None
     
-def create_postgres_datasource(base_url, datasource_name, host, port, username, password, database):
-    try:
-        url = f"{base_url}/api/databases/{datasource_name}"
-        payload = {
-            "engine": "postgres",
-            "connection_data": {
-                "host": host,
-                "port": port,
-                "user": username,
-                "password": password,
-                "database": database
-            }
-        }
-        headers = {
-            'Content-Type': 'application/json'
-        }
-        response = requests.post(url, json=payload, headers=headers)
-        print(f"Response status code: {response.status_code}")
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        print(f"Error creating Postgres datasource: {str(e)}")
-        return None

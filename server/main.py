@@ -5,10 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from router import mindsdb_router, airbyte_router
 from router.slack import slack_router
 from settings import Settings
+from mindsdb import mindsdb_setup
 from airbyte import setup_airbyte_connections
-from mindsdb.slack_kb_setup import setup_slack_chatbot_kb
-from mindsdb.text2sql_setup import setup_text2sql_skill, text2sql_router
-from mindsdb.forecast_setup import setup_forecast_model, forecast_router
 
 logger = structlog.get_logger(__name__)
 
@@ -53,7 +51,7 @@ def create_app() -> FastAPI:
         setup_airbyte_connections()
 
         # Setup Slack chatbot and knowledge base
-        setup_slack_chatbot_kb()
+        mindsdb_setup()
 
         # # Setup Text2SQL skill
         # setup_text2sql_skill()
@@ -66,8 +64,6 @@ def create_app() -> FastAPI:
         app.include_router(mindsdb_router, prefix="/api")
         app.include_router(airbyte_router, prefix="/api")
         app.include_router(slack_router, prefix="/api")
-        app.include_router(text2sql_router, prefix="/api")
-        app.include_router(forecast_router, prefix="/api")
 
     except Exception as e:
         logger.error(f"Error initializing application: {str(e)}")
