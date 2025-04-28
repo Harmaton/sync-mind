@@ -1,7 +1,7 @@
 import structlog
 from .datasources import create_slack_datasource_in_mindsdb, create_mongo_datasource
-from .engines import create_google_gemini_engine, create_forecast_engine
-from .models import create_gemini_model, create_forecast_model
+from .engines import create_google_gemini_engine, create_forecast_engine, create_langchain_engine
+from .models import create_gemini_model, create_forecast_model, create_langchain_model
 from .skills import (
     create_stocks_text2sql_skill
 )
@@ -35,6 +35,13 @@ def mindsdb_setup():
         return False
     if not create_forecast_model():
         logger.error("Failed to create Forecast model")
+        return False
+    # Ensure Langchain engine and model are created
+    if not create_langchain_engine():
+        logger.error("Failed to create Langchain engine")
+        return False
+    if not create_langchain_model():
+        logger.error("Failed to create Langchain model")
         return False
     if not create_advisor_agent():
         logger.error("Failed to create Advisor agent")

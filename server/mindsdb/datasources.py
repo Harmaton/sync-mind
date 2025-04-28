@@ -32,7 +32,7 @@ def create_slack_datasource_in_mindsdb():
 def create_mongo_datasource():
     url = f"{MINDSDB_API}/sql/query"
     sql = f'''
-    CREATE DATABASE IF NOT EXISTS {DEFAULT_DATASOURCE}
+    CREATE DATABASE {DEFAULT_DATASOURCE}
     WITH
     ENGINE = 'mongodb',
     PARAMETERS = {{
@@ -46,7 +46,7 @@ def create_mongo_datasource():
         if resp.status_code not in (200, 201, 409):
             logger.error("Failed to create datasource", details=resp.text)
             return False
-        logger.info("Datasource created or already exists", name=DEFAULT_DATASOURCE)
+
         return resp.json()
     except Exception as e:
         logger.error("Error creating datasource via SQL API", error=str(e))

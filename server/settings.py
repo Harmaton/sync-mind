@@ -1,6 +1,6 @@
 from pathlib import Path
 import structlog
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
 logger = structlog.get_logger(__name__)
@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # Gemini
     gemini_api_key: str = Field("", env="GEMINI_API_KEY")
 
+    # Open ai
+    openai_api_key: str = Field("", env="OPENAI_API_KEY")
+    
     # Polygon
     polygon_api_key: str = Field("", env="POLYGON_API_KEY")
     polygon_start_date: str = Field("", env="POLYGON_START_DATE")
@@ -46,9 +49,7 @@ class Settings(BaseSettings):
     # Restrict backend listener to specific IPs
     cors_origins: list[str] = ["*"]
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
 settings = Settings()
 logger.debug("Settings have been initialized.", settings=settings.model_dump(exclude={"mongo_password"}))

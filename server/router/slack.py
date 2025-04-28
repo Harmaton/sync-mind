@@ -5,7 +5,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from mindsdb import store_slack_message, store_slack_thread_message
 import re
-from mindsdb import polygon_text2sql_answer, gemini_retrieve_answer, make_prediction
+from mindsdb import polygon_text2sql_answer, gemini_retrieve_answer, make_prediction, langchain_completion
 
 logger = structlog.get_logger(__name__)
 settings = Settings()
@@ -16,14 +16,15 @@ slack_router = APIRouter(prefix="/slack", tags=["slack"])
 
 @slack_router.post("/events")
 async def slack_events(request: Request):
-    body = await request.body()
-    logger.info("Slack event raw body", body=body)
+    # raw body logging removed to reduce verbosity
     try:
         data = await request.json()
     except Exception as e:
         logger.error("Failed to parse JSON from Slack event", error=str(e))
         return {"error": "Invalid JSON"}
-    logger.info("Received Slack event", body=data)
+    # Log only minimal event info
+    event = data.get("event", {})
+    logger.info("Incoming Slack event", type=event.get("type"), user=event.get("user"), channel=event.get("channel"), text=event.get("text", ""), thread_ts=event.get("thread_ts") or event.get("ts"))
     if data.get("type") == "url_verification":
         logger.info("Responding to Slack challenge", challenge=data.get("challenge"))
         return {"challenge": data["challenge"]}
@@ -65,9 +66,8 @@ async def slack_events(request: Request):
     # Handle mentions (app_mention)
     if event_type == "app_mention":
         logger.info("Handling app_mention event", text=text, user=user, channel=channel)
-        bot_user_id = user
-        mention = f"<@{bot_user_id}>"
-        clean_text = text.replace(mention, "").strip()
+        # Strip bot mention prefix regardless of ID
+        clean_text = re.sub(r"^<@[^>]+>\s*", "", text).strip()
         # Store the mention event
         store_slack_message(channel, text)
         try:
@@ -75,16 +75,31 @@ async def slack_events(request: Request):
         except SlackApiError as e:
             logger.error("Failed to send 'working on it' reply via Slack SDK", error=str(e))
         try:
-            lower = clean_text.lower()
-            if "forecast" in lower or "predict" in lower:
-                answer = make_prediction(clean_text)
-            elif any(word in lower for word in ["order", "trade", "buy", "sell", "position", "stop", "take profit"]):
-                answer = polygon_text2sql_answer(clean_text)
+            # Explicit command prefix detection
+            prefix_match = re.match(r"^(forecast|predict|trade|advisor|advice|analysis)[:\s]+(.+)", clean_text, re.IGNORECASE)
+            if prefix_match:
+                key, content = prefix_match.group(1).lower(), prefix_match.group(2).strip()
+                if key in ("forecast", "predict"):
+                    answer = make_prediction(content)
+                elif key == "trade":
+                    answer = polygon_text2sql_answer(content)
+                else:
+                    answer = langchain_completion(content)
             else:
-                answer = gemini_retrieve_answer(clean_text, previous_messages=None)
+                lower = clean_text.lower()
+                if "forecast" in lower or "predict" in lower:
+                    answer = make_prediction(clean_text)
+                elif any(word in lower for word in ["order", "trade", "buy", "sell", "position", "stop", "take profit"]):
+                    answer = polygon_text2sql_answer(clean_text)
+                elif any(k in lower for k in ["advice", "recommend", "analysis"]):
+                    answer = langchain_completion(clean_text)
+                else:
+                    answer = gemini_retrieve_answer(clean_text, previous_messages=None)
         except Exception as e:
             logger.error("Retriever error", error=str(e))
             answer = f"Sorry, I couldn't process your request. Error: {str(e)}"
+        # Log outgoing reply
+        logger.info("Sending Slack reply", text=answer, channel=channel, thread_ts=thread_ts)
         try:
             slack_client.chat_postMessage(channel=channel, text=answer, thread_ts=thread_ts)
         except SlackApiError as e:
@@ -101,16 +116,31 @@ async def slack_events(request: Request):
         except SlackApiError as e:
             logger.error("Failed to send 'working on it' reply via Slack SDK", error=str(e))
         try:
-            lower = text.lower()
-            if "forecast" in lower or "predict" in lower:
-                answer = make_prediction(text)
-            elif any(word in lower for word in ["order", "trade", "buy", "sell", "position", "stop", "take profit"]):
-                answer = polygon_text2sql_answer(text)
+            # Explicit command prefix detection
+            prefix_match = re.match(r"^(forecast|predict|trade|advisor|advice|analysis)[:\s]+(.+)", text, re.IGNORECASE)
+            if prefix_match:
+                key, content = prefix_match.group(1).lower(), prefix_match.group(2).strip()
+                if key in ("forecast", "predict"):
+                    answer = make_prediction(content)
+                elif key == "trade":
+                    answer = polygon_text2sql_answer(content)
+                else:
+                    answer = langchain_completion(content)
             else:
-                answer = gemini_retrieve_answer(text, previous_messages=None)
+                lower = text.lower()
+                if "forecast" in lower or "predict" in lower:
+                    answer = make_prediction(text)
+                elif any(word in lower for word in ["order", "trade", "buy", "sell", "position", "stop", "take profit"]):
+                    answer = polygon_text2sql_answer(text)
+                elif any(k in lower for k in ["advice", "recommend", "analysis"]):
+                    answer = langchain_completion(text)
+                else:
+                    answer = gemini_retrieve_answer(text, previous_messages=None)
         except Exception as e:
             logger.error("Retriever error", error=str(e))
             answer = f"Sorry, I couldn't process your request. Error: {str(e)}"
+        # Log outgoing reply
+        logger.info("Sending Slack reply", text=answer, channel=channel, thread_ts=thread_ts)
         try:
             slack_client.chat_postMessage(channel=channel, text=answer, thread_ts=thread_ts)
         except SlackApiError as e:
