@@ -43,3 +43,26 @@ The prefixes you can use when you @-mention the bot (or reply in thread) to pick
 @SyncMind advice Should I add more AAPL to my portfolio?
 @SyncMind analysis What’s your take on the tariffs hike?
 ```
+
+## Run Locally
+
+- Ensure you have [uvicorn](https://www.uvicorn.org/) installed:
+   ```bash
+   pip install uvicorn
+   ```
+1. Copy `.env.example` to `.env` and fill in your credentials:
+   ```bash
+   cp server/.env.example server/.env
+   ```
+2. Install Python dependencies:
+   ```bash
+   pip install -r server/requirements.txt
+   ```
+3. Launch with uvicorn:
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8080
+   ```
+4. In another terminal, expose your app to Slack via ngrok:
+   ```bash
+   ngrok http 8080
+   ```
