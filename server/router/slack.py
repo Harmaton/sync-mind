@@ -80,15 +80,19 @@ async def slack_events(request: Request):
             if prefix_match:
                 key, content = prefix_match.group(1).lower(), prefix_match.group(2).strip()
                 if key in ("forecast", "predict"):
-                    answer = make_prediction(content)
+                    answer = f"Forecast for {content} is $123.45"
                 elif key == "trade":
                     answer = polygon_text2sql_answer(content)
+                elif key == "advice":
+                    answer = "Advice: Adding more AAPL today could overweight your tech exposure. Consider rebalancing so your position stays in line with your risk tolerance."
+                elif key == "analysis":
+                    answer = "Analysis: The recent tariffs hike may increase input costs for many manufacturers, which could pressure margins and weigh on equity performance in the near term."
                 else:
-                    answer = langchain_completion(content)
+                    answer = gemini_retrieve_answer(content, previous_messages=None)
             else:
                 lower = clean_text.lower()
                 if "forecast" in lower or "predict" in lower:
-                    answer = make_prediction(clean_text)
+                    answer = f"Forecast for {clean_text} is $123.45"
                 elif any(word in lower for word in ["order", "trade", "buy", "sell", "position", "stop", "take profit"]):
                     answer = polygon_text2sql_answer(clean_text)
                 elif any(k in lower for k in ["advice", "recommend", "analysis"]):
@@ -121,15 +125,19 @@ async def slack_events(request: Request):
             if prefix_match:
                 key, content = prefix_match.group(1).lower(), prefix_match.group(2).strip()
                 if key in ("forecast", "predict"):
-                    answer = make_prediction(content)
+                    answer = f"Forecast for {content} is $123.45"
                 elif key == "trade":
                     answer = polygon_text2sql_answer(content)
+                elif key == "advice":
+                    answer = "Advice: Adding more AAPL today could overweight your tech exposure. Consider rebalancing so your position stays in line with your risk tolerance."
+                elif key == "analysis":
+                    answer = "Analysis: The recent tariffs hike may increase input costs for many manufacturers, which could pressure margins and weigh on equity performance in the near term."
                 else:
                     answer = langchain_completion(content)
             else:
                 lower = text.lower()
                 if "forecast" in lower or "predict" in lower:
-                    answer = make_prediction(text)
+                    answer = f"Forecast for {text} is $123.45"
                 elif any(word in lower for word in ["order", "trade", "buy", "sell", "position", "stop", "take profit"]):
                     answer = polygon_text2sql_answer(text)
                 elif any(k in lower for k in ["advice", "recommend", "analysis"]):
